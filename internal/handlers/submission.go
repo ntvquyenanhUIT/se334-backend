@@ -156,12 +156,9 @@ func (h *SubmissionHandler) GetUserSubmissions(c *gin.Context) {
 		return
 	}
 
-	// Format submission times and add language names
 	for i := range submissions {
-		// Format time as "Jan 2, 2006 at 3:04 PM"
-		submissions[i].FormattedTime = submissions[i].SubmittedAt.Format("Jan 2, 2006 at 3:04 PM")
+		submissions[i].FormattedTime = submissions[i].SubmittedAt.Format("02/01/2006 3:04PM")
 
-		// Map language ID to language name
 		submissions[i].LanguageName = getLanguageName(submissions[i].LanguageID)
 	}
 
