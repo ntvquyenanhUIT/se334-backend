@@ -104,7 +104,8 @@ func (h *SubmissionHandler) GetSubmission(c *gin.Context) {
 
 	// Prepare simplified response with just the key information
 	response := gin.H{
-		"status": submission.Status,
+		"status":      submission.Status,
+		"source_code": submission.SourceCode,
 	}
 
 	// Add wrong test case info if status is wrong answer

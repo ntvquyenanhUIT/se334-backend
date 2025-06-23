@@ -60,15 +60,13 @@ func (r *codeRepository) GetSubmissionByID(ctx context.Context, submissionID int
 		return nil, fmt.Errorf("failed to get submission: %w", err)
 	}
 
-	// Create response with status and program output
 	response := &models.SubmissionResponse{
 		Status:        submission.Status,
 		ProgramOutput: submission.ProgramOutput,
+		SourceCode:    submission.SourceCode,
 	}
-
-	// If there's a wrong testcase, get its input and correct output
+	fmt.Printf("Source code ne: %v\n", response.SourceCode)
 	if submission.WrongTestcase != nil {
-		// Query to get the testcase input and expected output based on the wrong testcase ID
 		testcaseQuery := `SELECT input, expected_output FROM test_cases WHERE id = ?`
 
 		var testcase struct {
@@ -81,9 +79,7 @@ func (r *codeRepository) GetSubmissionByID(ctx context.Context, submissionID int
 			if err != sql.ErrNoRows {
 				return nil, fmt.Errorf("failed to get testcase data: %w", err)
 			}
-			// If testcase not found, just continue without the input
 		} else {
-			// Set both the wrong testcase input and expected output
 			response.WrongTestcase = &testcase.Input
 			response.ExpectedOutput = &testcase.ExpectedOutput
 		}

@@ -31,6 +31,7 @@ type SubmissionResponse struct {
 	WrongTestcase  *string `json:"wrong_testcase,omitempty"`
 	ExpectedOutput *string `json:"expected_output,omitempty"`
 	ProgramOutput  *string `json:"program_output,omitempty"`
+	SourceCode     string  `json:"source_code"`
 }
 
 type SubmissionRequest struct {
