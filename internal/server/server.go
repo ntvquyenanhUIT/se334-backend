@@ -3,8 +3,10 @@ package server
 import (
 	"HAB/configs"
 	"HAB/internal/dbs"
+	"HAB/internal/handlers"
 	"HAB/internal/logger"
 	"HAB/internal/middlewares"
+	"HAB/internal/repositories"
 	"HAB/internal/workerpool"
 
 	"context"
@@ -32,16 +34,31 @@ func StartGinServer() {
 	}
 	defer dbs.CloseRedis()
 
-	workerpool := workerpool.NewWorkerPool(config.NumberOfWorkers, dbs.RedisClient, "code_submissions", "judgers")
+	// Initialize code repository
+	codeRepo := repositories.NewCodeRepository(db)
+	problemRepo := repositories.NewProblemRepository(db)
 
-	if err := workerpool.Start(ctx); err != nil {
+	// Initialize worker pool
+	workerPool, err := workerpool.NewCodeWorkerPool(config.NumberOfWorkers, dbs.RedisClient, "code_submissions", "judgers", codeRepo)
+	if err != nil {
+		logger.Log.Error("Failed initializing worker pool")
+		log.Fatalf("failed to initialize worker pool: %v", err)
+	}
+
+	if err := workerPool.Start(ctx); err != nil {
 		logger.Log.Error("Failed starting worker pool")
 		log.Fatalf("failed to start worker pool: %v", err)
 	}
+	defer workerPool.Stop()
+
+	submissionHandler := handlers.NewSubmissionHandler(codeRepo, dbs.RedisClient)
+	problemHandler := handlers.NewProblemHandler(problemRepo)
 
 	router := gin.New()
 	router.Use(middlewares.ErrorHandlerMiddleware())
 
+	submissionHandler.RegisterRoutes(router)
+	problemHandler.RegisterRoutes(router)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 	})

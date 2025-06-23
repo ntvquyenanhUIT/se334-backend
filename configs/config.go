@@ -33,7 +33,7 @@ func LoadConfig() *Config {
 		DBUser:          os.Getenv("DB_USER"),
 		DBPassword:      os.Getenv("DB_PASSWORD"),
 		DBName:          os.Getenv("DB_NAME"),
-		ServerPort:      os.Getenv("SERVER_PORT"),
+		ServerPort:      os.Getenv("SEVER_PORT"),
 		NumberOfWorkers: numWorkerInt,
 	}
 }
