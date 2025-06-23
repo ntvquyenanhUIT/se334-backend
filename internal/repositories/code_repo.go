@@ -18,6 +18,7 @@ type CodeRepository interface {
 	GetLanguageImports(ctx context.Context, problemID int, languageID int) (string, error)
 	CreateSubmission(ctx context.Context, submission *models.Submission) error
 	UpdateSubmissionStatus(ctx context.Context, submissionID int, status string, wrongTestcase *int, wrongOutput *string) error
+	GetSubmissionsByUserAndProblem(ctx context.Context, userID int, problemID int) ([]models.SubmissionListItem, error)
 }
 
 type codeRepository struct {
@@ -164,6 +165,20 @@ func (r *codeRepository) CreateSubmission(ctx context.Context, submission *model
 
 	submission.ID = int(id)
 	return nil
+}
+
+func (r *codeRepository) GetSubmissionsByUserAndProblem(ctx context.Context, userID int, problemID int) ([]models.SubmissionListItem, error) {
+	query := `SELECT id, language_id, status, submitted_at 
+              FROM submissions 
+              WHERE user_id = ? AND problem_id = ? 
+              ORDER BY submitted_at DESC`
+
+	var submissions []models.SubmissionListItem
+	if err := r.db.SelectContext(ctx, &submissions, query, userID, problemID); err != nil {
+		return nil, fmt.Errorf("failed to get user submissions: %w", err)
+	}
+
+	return submissions, nil
 }
 
 func (r *codeRepository) UpdateSubmissionStatus(ctx context.Context, submissionID int, status string, wrongTestcase *int, wrongOutput *string) error {

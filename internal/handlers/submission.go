@@ -124,11 +124,70 @@ func (h *SubmissionHandler) GetSubmission(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// RegisterRoutes registers the submission handler routes
+func (h *SubmissionHandler) GetUserSubmissions(c *gin.Context) {
+	userIDStr := c.Query("user_id")
+	problemIDStr := c.Query("problem_id")
+
+	if userIDStr == "" || problemIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Both user_id and problem_id query parameters are required"})
+		return
+	}
+
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil || userID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	problemID, err := strconv.Atoi(problemIDStr)
+	if err != nil || problemID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid problem ID"})
+		return
+	}
+
+	submissions, err := h.codeRepo.GetSubmissionsByUserAndProblem(context.Background(), userID, problemID)
+	if err != nil {
+		logger.Log.Error("Failed to get user submissions",
+			zap.Int("user_id", userID),
+			zap.Int("problem_id", problemID),
+			zap.Error(err))
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve submission history"})
+		return
+	}
+
+	// Format submission times and add language names
+	for i := range submissions {
+		// Format time as "Jan 2, 2006 at 3:04 PM"
+		submissions[i].FormattedTime = submissions[i].SubmittedAt.Format("Jan 2, 2006 at 3:04 PM")
+
+		// Map language ID to language name
+		submissions[i].LanguageName = getLanguageName(submissions[i].LanguageID)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"submissions": submissions,
+		"count":       len(submissions),
+	})
+}
+
+// Helper function to map language IDs to names
+func getLanguageName(languageID int) string {
+	switch languageID {
+	case 1:
+		return "Python"
+	case 2:
+		return "Go"
+	default:
+		return "Unknown"
+	}
+}
+
 func (h *SubmissionHandler) RegisterRoutes(router *gin.Engine) {
 	submissionGroup := router.Group("/submissions")
 	{
 		submissionGroup.POST("", h.CreateSubmission)
 		submissionGroup.GET("/:id", h.GetSubmission)
+		submissionGroup.GET("", h.GetUserSubmissions)
 	}
 }

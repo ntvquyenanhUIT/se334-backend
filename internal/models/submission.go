@@ -41,6 +41,16 @@ type SubmissionRequest struct {
 	SourceCode string `json:"source_code" binding:"required"`
 }
 
+type SubmissionListItem struct {
+	ID          int       `db:"id" json:"id"`
+	LanguageID  int       `db:"language_id" json:"language_id"`
+	Status      string    `db:"status" json:"status"`
+	SubmittedAt time.Time `db:"submitted_at" json:"submitted_at"`
+	// Derived field filled in by the handler
+	FormattedTime string `db:"-" json:"submitted_time"`
+	LanguageName  string `db:"-" json:"language_name"`
+}
+
 func (r *SubmissionRequest) ValidateRequest() error {
 	if r.UserID <= 0 {
 		return errors.New("user ID must be a positive integer")
