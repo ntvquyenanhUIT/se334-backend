@@ -48,7 +48,6 @@ func (h *ProblemHandler) GetProblems(c *gin.Context) {
 	})
 }
 
-// GetProblemByID returns detailed information about a specific problem
 func (h *ProblemHandler) GetProblemByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
