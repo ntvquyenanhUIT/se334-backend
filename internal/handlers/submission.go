@@ -29,6 +29,11 @@ func NewSubmissionHandler(codeRepo repositories.CodeRepository, redis *redis.Cli
 func (h *SubmissionHandler) CreateSubmission(c *gin.Context) {
 	var req models.SubmissionRequest
 
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -36,12 +41,6 @@ func (h *SubmissionHandler) CreateSubmission(c *gin.Context) {
 
 	if err := req.ValidateRequest(); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 

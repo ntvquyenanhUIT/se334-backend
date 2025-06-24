@@ -14,6 +14,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -59,6 +60,7 @@ func StartGinServer() {
 
 	router := gin.New()
 	router.Use(middlewares.ErrorHandlerMiddleware())
+	router.Use(cors.Default())
 
 	authMiddleware := middlewares.AuthMiddleware(tokenService)
 	optionalAuthMiddleware := middlewares.OptionalAuthMiddleware(tokenService)
