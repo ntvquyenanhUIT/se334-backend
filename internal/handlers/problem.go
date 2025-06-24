@@ -16,20 +16,31 @@ type ProblemHandler struct {
 	problemRepo repositories.ProblemRepository
 }
 
-// NewProblemHandler creates a new problem handler
 func NewProblemHandler(problemRepo repositories.ProblemRepository) *ProblemHandler {
 	return &ProblemHandler{
 		problemRepo: problemRepo,
 	}
 }
 
-// GetProblems returns a list of all problems with minimal information
 func (h *ProblemHandler) GetProblems(c *gin.Context) {
 	problems, err := h.problemRepo.GetProblems(context.Background())
 	if err != nil {
 		logger.Log.Error("Failed to get problems", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve problems"})
 		return
+	}
+
+	if userID, exists := c.Get("userID"); exists {
+		solvedMap, err := h.problemRepo.GetSolvedProblemIDs(context.Background(), userID.(int))
+		if err != nil {
+			logger.Log.Warn("Failed to get solved problem IDs", zap.Error(err))
+		} else {
+			for i := range problems {
+				if _, solved := solvedMap[problems[i].ID]; solved {
+					problems[i].IsSolved = true
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -61,12 +72,23 @@ func (h *ProblemHandler) GetProblemByID(c *gin.Context) {
 		return
 	}
 
+	if userID, exists := c.Get("userID"); exists {
+		solvedMap, err := h.problemRepo.GetSolvedProblemIDs(context.Background(), userID.(int))
+		if err != nil {
+			logger.Log.Warn("Failed to get solved problem IDs for single problem", zap.Error(err))
+		} else {
+			if _, solved := solvedMap[problem.ID]; solved {
+				problem.IsSolved = true
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, problem)
 }
 
-// RegisterRoutes registers the problem handler routes
-func (h *ProblemHandler) RegisterRoutes(router *gin.Engine) {
+func (h *ProblemHandler) RegisterRoutes(router *gin.Engine, optionalAuthMiddleware gin.HandlerFunc) {
 	problemGroup := router.Group("/problems")
+	problemGroup.Use(optionalAuthMiddleware)
 	{
 		problemGroup.GET("", h.GetProblems)
 		problemGroup.GET("/:id", h.GetProblemByID)

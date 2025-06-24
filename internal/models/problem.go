@@ -4,6 +4,7 @@ type ProblemListItem struct {
 	ID         int    `db:"id" json:"id"`
 	Title      string `db:"title" json:"title"`
 	Difficulty string `db:"difficulty" json:"difficulty"`
+	IsSolved   bool   `json:"is_solved"`
 }
 
 type ProblemDetail struct {
@@ -14,4 +15,5 @@ type ProblemDetail struct {
 	SampleInput  string         `db:"sample_input" json:"sample_input"`
 	SampleOutput string         `db:"sample_output" json:"sample_output"`
 	StarterCode  map[int]string `json:"starter_code,omitempty"`
+	IsSolved     bool           `json:"is_solved"`
 }

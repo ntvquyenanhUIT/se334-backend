@@ -12,7 +12,7 @@ import (
 
 type CodeRepository interface {
 	GetSubmission(ctx context.Context, submissionID int) (*models.Submission, error)
-	GetSubmissionByID(ctx context.Context, submissionID int) (*models.SubmissionResponse, error)
+	GetSubmissionByID(ctx context.Context, submissionID int, userID int) (*models.SubmissionResponse, error)
 	GetTestCases(ctx context.Context, problemID int) ([]services.TestCase, error)
 	GetSystemCode(ctx context.Context, problemID int, languageID int) (string, error)
 	GetLanguageImports(ctx context.Context, problemID int, languageID int) (string, error)
@@ -46,17 +46,18 @@ func (r *codeRepository) GetSubmission(ctx context.Context, submissionID int) (*
 
 	return &submission, nil
 }
-func (r *codeRepository) GetSubmissionByID(ctx context.Context, submissionID int) (*models.SubmissionResponse, error) {
+
+func (r *codeRepository) GetSubmissionByID(ctx context.Context, submissionID, userID int) (*models.SubmissionResponse, error) {
 	query := `SELECT id, user_id, problem_id, language_id, source_code, status, 
               wrong_testcase, program_output, submitted_at 
-              FROM submissions WHERE id = ?`
+              FROM submissions WHERE id = ? AND user_id = ?`
 
 	var submission models.Submission
 
-	err := r.db.GetContext(ctx, &submission, query, submissionID)
+	err := r.db.GetContext(ctx, &submission, query, submissionID, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("submission not found: %d", submissionID)
+			return nil, fmt.Errorf("submission not found or access denied: %d", submissionID)
 		}
 		return nil, fmt.Errorf("failed to get submission: %w", err)
 	}
@@ -66,7 +67,6 @@ func (r *codeRepository) GetSubmissionByID(ctx context.Context, submissionID int
 		ProgramOutput: submission.ProgramOutput,
 		SourceCode:    submission.SourceCode,
 	}
-	fmt.Printf("Source code ne: %v\n", response.SourceCode)
 	if submission.WrongTestcase != nil {
 		testcaseQuery := `SELECT input, expected_output FROM test_cases WHERE id = ?`
 

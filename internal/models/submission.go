@@ -35,7 +35,6 @@ type SubmissionResponse struct {
 }
 
 type SubmissionRequest struct {
-	UserID     int    `json:"user_id" binding:"required"`
 	ProblemID  int    `json:"problem_id" binding:"required"`
 	LanguageID int    `json:"language_id" binding:"required"`
 	SourceCode string `json:"source_code" binding:"required"`
@@ -52,9 +51,6 @@ type SubmissionListItem struct {
 }
 
 func (r *SubmissionRequest) ValidateRequest() error {
-	if r.UserID <= 0 {
-		return errors.New("user ID must be a positive integer")
-	}
 
 	if r.ProblemID <= 0 {
 		return errors.New("problem ID must be a positive integer")

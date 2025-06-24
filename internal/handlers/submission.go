@@ -19,7 +19,6 @@ type SubmissionHandler struct {
 	redis    *redis.Client
 }
 
-// NewSubmissionHandler creates a new submission handler
 func NewSubmissionHandler(codeRepo repositories.CodeRepository, redis *redis.Client) *SubmissionHandler {
 	return &SubmissionHandler{
 		codeRepo: codeRepo,
@@ -27,7 +26,6 @@ func NewSubmissionHandler(codeRepo repositories.CodeRepository, redis *redis.Cli
 	}
 }
 
-// CreateSubmission handles the submission creation request
 func (h *SubmissionHandler) CreateSubmission(c *gin.Context) {
 	var req models.SubmissionRequest
 
@@ -41,8 +39,14 @@ func (h *SubmissionHandler) CreateSubmission(c *gin.Context) {
 		return
 	}
 
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	submission := models.Submission{
-		UserID:     req.UserID,
+		UserID:     userID.(int),
 		ProblemID:  req.ProblemID,
 		LanguageID: req.LanguageID,
 		SourceCode: req.SourceCode,
@@ -79,42 +83,50 @@ func (h *SubmissionHandler) CreateSubmission(c *gin.Context) {
 }
 
 func (h *SubmissionHandler) GetSubmission(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	submissionID, err := strconv.Atoi(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid submission ID"})
 		return
 	}
 
-	// Get submission details from database
-	submission, err := h.codeRepo.GetSubmissionByID(context.Background(), id)
+	submission, err := h.codeRepo.GetSubmissionByID(context.Background(), submissionID, userID.(int))
 	if err != nil {
-		logger.Log.Error("Failed to get submission",
-			zap.Int("submission_id", id),
-			zap.Error(err))
-
-		if strings.Contains(err.Error(), "not found") {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "access denied") {
+			// This is not a server error, but a client-side error (e.g., wrong ID or permission issue).
+			// Logged as Info for auditing purposes.
+			logger.Log.Info("User attempted to access a non-existent or forbidden submission",
+				zap.Int("submission_id", submissionID),
+				zap.Any("user_id", userID),
+				zap.Error(err))
+			c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found or access denied"})
 			return
 		}
 
+		// For other types of errors, it's a potential server issue.
+		logger.Log.Error("Failed to get submission",
+			zap.Int("submission_id", submissionID),
+			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve submission details"})
 		return
 	}
 
-	// Prepare simplified response with just the key information
 	response := gin.H{
 		"status":      submission.Status,
 		"source_code": submission.SourceCode,
 	}
 
-	// Add wrong test case info if status is wrong answer
 	if submission.Status == models.StatusWrongAnswer && submission.WrongTestcase != nil {
 		response["wrong_testcase"] = *submission.WrongTestcase
 		response["expected_output"] = *submission.ExpectedOutput
 	}
 
-	// Include program output for any non-successful submission
 	if submission.ProgramOutput != nil &&
 		(submission.Status == models.StatusWrongAnswer ||
 			submission.Status == models.StatusCompilationError) {
@@ -125,17 +137,16 @@ func (h *SubmissionHandler) GetSubmission(c *gin.Context) {
 }
 
 func (h *SubmissionHandler) GetUserSubmissions(c *gin.Context) {
-	userIDStr := c.Query("user_id")
 	problemIDStr := c.Query("problem_id")
 
-	if userIDStr == "" || problemIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Both user_id and problem_id query parameters are required"})
+	if problemIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "problem_id query parameter is required"})
 		return
 	}
 
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil || userID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
@@ -145,10 +156,10 @@ func (h *SubmissionHandler) GetUserSubmissions(c *gin.Context) {
 		return
 	}
 
-	submissions, err := h.codeRepo.GetSubmissionsByUserAndProblem(context.Background(), userID, problemID)
+	submissions, err := h.codeRepo.GetSubmissionsByUserAndProblem(context.Background(), userID.(int), problemID)
 	if err != nil {
 		logger.Log.Error("Failed to get user submissions",
-			zap.Int("user_id", userID),
+			zap.Int("user_id", userID.(int)),
 			zap.Int("problem_id", problemID),
 			zap.Error(err))
 
@@ -168,7 +179,6 @@ func (h *SubmissionHandler) GetUserSubmissions(c *gin.Context) {
 	})
 }
 
-// Helper function to map language IDs to names
 func getLanguageName(languageID int) string {
 	switch languageID {
 	case 1:
@@ -180,8 +190,9 @@ func getLanguageName(languageID int) string {
 	}
 }
 
-func (h *SubmissionHandler) RegisterRoutes(router *gin.Engine) {
+func (h *SubmissionHandler) RegisterRoutes(router *gin.Engine, authMiddleware gin.HandlerFunc) {
 	submissionGroup := router.Group("/submissions")
+	submissionGroup.Use(authMiddleware)
 	{
 		submissionGroup.POST("", h.CreateSubmission)
 		submissionGroup.GET("/:id", h.GetSubmission)

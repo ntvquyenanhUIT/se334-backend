@@ -13,6 +13,7 @@ type ProblemRepository interface {
 	GetProblems(ctx context.Context) ([]models.ProblemListItem, error)
 	GetProblemByID(ctx context.Context, problemID int) (*models.ProblemDetail, error)
 	GetStarterCode(ctx context.Context, problemID int) (map[int]string, error)
+	GetSolvedProblemIDs(ctx context.Context, userID int) (map[int]bool, error)
 }
 
 type problemRepository struct {
@@ -75,4 +76,20 @@ func (r *problemRepository) GetStarterCode(ctx context.Context, problemID int) (
 	}
 
 	return starterCode, nil
+}
+
+func (r *problemRepository) GetSolvedProblemIDs(ctx context.Context, userID int) (map[int]bool, error) {
+	query := `SELECT DISTINCT problem_id FROM submissions WHERE user_id = ? AND status = 'ACCEPTED'`
+
+	var problemIDs []int
+	if err := r.db.SelectContext(ctx, &problemIDs, query, userID); err != nil {
+		return nil, fmt.Errorf("failed to get solved problem IDs: %w", err)
+	}
+
+	solvedMap := make(map[int]bool, len(problemIDs))
+	for _, id := range problemIDs {
+		solvedMap[id] = true
+	}
+
+	return solvedMap, nil
 }
