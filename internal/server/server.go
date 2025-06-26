@@ -13,6 +13,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -60,7 +61,15 @@ func StartGinServer() {
 
 	router := gin.New()
 	router.Use(middlewares.ErrorHandlerMiddleware())
-	router.Use(cors.Default())
+
+	// Configure CORS to allow credentials and specific origin
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	authMiddleware := middlewares.AuthMiddleware(tokenService)
 	optionalAuthMiddleware := middlewares.OptionalAuthMiddleware(tokenService)
