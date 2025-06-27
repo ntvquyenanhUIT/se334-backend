@@ -47,7 +47,30 @@ func (r *problemRepository) GetProblemByID(ctx context.Context, problemID int) (
 		return nil, fmt.Errorf("failed to get problem: %w", err)
 	}
 
-	// Get starter code for the problem
+	// Get submission stats
+	statsQuery := `
+        SELECT 
+            COUNT(*) as total_submissions,
+            COUNT(CASE WHEN status = 'ACCEPTED' THEN 1 END) as accepted_submissions
+        FROM submissions 
+        WHERE problem_id = ?`
+
+	var stats struct {
+		TotalSubmissions    int `db:"total_submissions"`
+		AcceptedSubmissions int `db:"accepted_submissions"`
+	}
+	if err := r.db.GetContext(ctx, &stats, statsQuery, problemID); err != nil {
+		return nil, fmt.Errorf("failed to get submission stats: %w", err)
+	}
+
+	problem.TotalSubmissions = stats.TotalSubmissions
+	problem.AcceptedSubmissions = stats.AcceptedSubmissions
+	if stats.TotalSubmissions > 0 {
+		problem.AcceptanceRate = (float64(stats.AcceptedSubmissions) / float64(stats.TotalSubmissions)) * 100
+	} else {
+		problem.AcceptanceRate = 0
+	}
+
 	starterCode, err := r.GetStarterCode(ctx, problemID)
 	if err != nil {
 		return nil, err
