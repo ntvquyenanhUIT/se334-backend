@@ -78,6 +78,13 @@ func StartGinServer() {
 	problemHandler.RegisterRoutes(router, optionalAuthMiddleware)
 	authHandler.RegisterRoutes(router)
 
+	// should not be here, but i'm too lazy to organize
+	profileGroup := router.Group("/profile")
+	profileGroup.Use(authMiddleware)
+	{
+		profileGroup.GET("", authHandler.GetProfile)
+	}
+
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 	})

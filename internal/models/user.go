@@ -21,6 +21,27 @@ type RegisterRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type Token struct {
+	ID        int       `db:"id"`
+	UserID    int       `db:"user_id"`
+	Token     string    `db:"token"`
+	CreatedAt time.Time `db:"created_at"`
+	IsRevoked bool      `db:"is_revoked"`
+	ExpiresAt time.Time `db:"expires_at"`
+}
+
+type UserInfo struct {
+	Username    string               `db:"username" json:"username"`
+	Email       string               `db:"email" json:"email"`
+	CreatedAt   time.Time            `db:"created_at" json:"created_at"`
+	Submissions []SubmissionListItem `json:"submissions"`
+}
+
 func (r *RegisterRequest) Validate() error {
 	if strings.TrimSpace(r.Username) == "" {
 		return errors.New("username cannot be empty")
@@ -38,18 +59,4 @@ func (r *RegisterRequest) Validate() error {
 		return errors.New("password must be at least 8 characters long")
 	}
 	return nil
-}
-
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-type Token struct {
-	ID        int       `db:"id"`
-	UserID    int       `db:"user_id"`
-	Token     string    `db:"token"`
-	CreatedAt time.Time `db:"created_at"`
-	IsRevoked bool      `db:"is_revoked"`
-	ExpiresAt time.Time `db:"expires_at"`
 }

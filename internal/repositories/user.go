@@ -17,6 +17,7 @@ type UserRepository interface {
 	StoreRefreshToken(ctx context.Context, userID int, token string, expiresAt time.Time) error
 	GetRefreshToken(ctx context.Context, token string) (*models.Token, error)
 	RevokeToken(ctx context.Context, token string) error
+	GetUserInfo(ctx context.Context, userID int) (*models.UserInfo, error)
 }
 
 type userRepository struct {
@@ -94,4 +95,28 @@ func (r *userRepository) RevokeToken(ctx context.Context, token string) error {
 		return fmt.Errorf("failed to revoke token: %w", err)
 	}
 	return nil
+}
+
+func (r *userRepository) GetUserInfo(ctx context.Context, userID int) (*models.UserInfo, error) {
+	var userInfo models.UserInfo
+	userQuery := `SELECT username, email, created_at FROM users WHERE id = ?`
+	err := r.db.GetContext(ctx, &userInfo, userQuery, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found: %d", userID)
+		}
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+
+	submissionsQuery := `
+        SELECT id, language_id, status, submitted_at 
+        FROM submissions 
+        WHERE user_id = ? 
+        ORDER BY submitted_at DESC`
+	err = r.db.SelectContext(ctx, &userInfo.Submissions, submissionsQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user submissions: %w", err)
+	}
+
+	return &userInfo, nil
 }

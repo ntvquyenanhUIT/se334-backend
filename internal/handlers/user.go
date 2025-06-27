@@ -145,6 +145,38 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"is_authenticated": true, "user_id": claims.UserID})
 }
 
+func (h *AuthHandler) GetProfile(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	userInfo, err := h.userRepo.GetUserInfo(context.Background(), userID.(int))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		logger.Log.Error("Failed to get user profile", zap.Error(err), zap.Any("user_id", userID))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user profile"})
+		return
+	}
+
+	// Populate derived fields for submissions
+	for i := range userInfo.Submissions {
+		userInfo.Submissions[i].FormattedTime = userInfo.Submissions[i].SubmittedAt.Format("02/01/2006 3:04PM")
+		userInfo.Submissions[i].LanguageName = getLanguageName(userInfo.Submissions[i].LanguageID)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"username":    userInfo.Username,
+		"email":       userInfo.Email,
+		"created_at":  userInfo.CreatedAt.Format("02/01/2006 3:04PM"),
+		"submissions": userInfo.Submissions,
+	})
+}
+
 func (h *AuthHandler) RegisterRoutes(router *gin.Engine) {
 	authGroup := router.Group("/auth")
 	{
