@@ -26,15 +26,6 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-type Token struct {
-	ID        int       `db:"id"`
-	UserID    int       `db:"user_id"`
-	Token     string    `db:"token"`
-	CreatedAt time.Time `db:"created_at"`
-	IsRevoked bool      `db:"is_revoked"`
-	ExpiresAt time.Time `db:"expires_at"`
-}
-
 type UserInfo struct {
 	Username    string               `db:"username" json:"username"`
 	Email       string               `db:"email" json:"email"`

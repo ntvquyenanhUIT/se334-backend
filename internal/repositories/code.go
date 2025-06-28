@@ -1,11 +1,13 @@
 package repositories
 
 import (
+	"HAB/internal/logger"
 	"HAB/internal/models"
 	"HAB/internal/services"
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -22,11 +24,13 @@ type CodeRepository interface {
 }
 
 type codeRepository struct {
-	db *sqlx.DB
+	db    *sqlx.DB
+	cache services.Cache
 }
 
-func NewCodeRepository(db *sqlx.DB) CodeRepository {
-	return &codeRepository{db: db}
+func NewCodeRepository(db *sqlx.DB, cache services.Cache) CodeRepository {
+	return &codeRepository{db: db,
+		cache: cache}
 }
 
 func (r *codeRepository) GetSubmission(ctx context.Context, submissionID int) (*models.Submission, error) {
@@ -88,22 +92,30 @@ func (r *codeRepository) GetSubmissionByID(ctx context.Context, submissionID, us
 
 	return response, nil
 }
-
 func (r *codeRepository) GetTestCases(ctx context.Context, problemID int) ([]services.TestCase, error) {
+	cacheKey := fmt.Sprintf("problem:%d:testcases", problemID)
+	var testCases []services.TestCase
+
+	if err := r.cache.Get(ctx, cacheKey, &testCases); err == nil {
+		logger.Log.Info("Cache hit, returning testcases")
+		return testCases, nil // Cache hit
+	}
+	logger.Log.Info("Test cases not in cache, retrieving in DB")
+
 	query := `SELECT id, input, expected_output FROM test_cases WHERE problem_id = ?`
 
-	var testCases []struct {
+	var dbTestCases []struct {
 		ID       int    `db:"id"`
 		Input    string `db:"input"`
 		Expected string `db:"expected_output"`
 	}
 
-	if err := r.db.SelectContext(ctx, &testCases, query, problemID); err != nil {
+	if err := r.db.SelectContext(ctx, &dbTestCases, query, problemID); err != nil {
 		return nil, fmt.Errorf("failed to get test cases: %w", err)
 	}
 
-	result := make([]services.TestCase, len(testCases))
-	for i, tc := range testCases {
+	result := make([]services.TestCase, len(dbTestCases))
+	for i, tc := range dbTestCases {
 		result[i] = services.TestCase{
 			ID:       tc.ID,
 			Input:    tc.Input,
@@ -111,13 +123,23 @@ func (r *codeRepository) GetTestCases(ctx context.Context, problemID int) ([]ser
 		}
 	}
 
+	_ = r.cache.Set(ctx, cacheKey, result, 1*time.Hour)
+
 	return result, nil
 }
 
 func (r *codeRepository) GetSystemCode(ctx context.Context, problemID int, languageID int) (string, error) {
+	cacheKey := fmt.Sprintf("problem:%d:lang:%d:system_code", problemID, languageID)
+	var code string
+
+	if err := r.cache.Get(ctx, cacheKey, &code); err == nil {
+		logger.Log.Info("Cache hit, returning system code")
+		return code, nil
+	}
+	logger.Log.Info("No system code in cache, retrieving from DB")
+
 	query := `SELECT code FROM system_code WHERE problem_id = ? AND language_id = ?`
 
-	var code string
 	if err := r.db.GetContext(ctx, &code, query, problemID, languageID); err != nil {
 		if err == sql.ErrNoRows {
 			return "", fmt.Errorf("system code not found for problem %d and language %d", problemID, languageID)
@@ -125,19 +147,32 @@ func (r *codeRepository) GetSystemCode(ctx context.Context, problemID int, langu
 		return "", fmt.Errorf("failed to get system code: %w", err)
 	}
 
+	_ = r.cache.Set(ctx, cacheKey, code, 1*time.Hour)
+
 	return code, nil
 }
 
 func (r *codeRepository) GetLanguageImports(ctx context.Context, problemID int, languageID int) (string, error) {
+	cacheKey := fmt.Sprintf("problem:%d:lang:%d:imports", problemID, languageID)
+	var code string
+
+	if err := r.cache.Get(ctx, cacheKey, &code); err == nil {
+		logger.Log.Info("Cache hit, returning language's import")
+		return code, nil // Cache hit
+	}
+	logger.Log.Info("No import in cache, retrieving from DB")
+
 	query := `SELECT code FROM language_imports WHERE problem_id = ? AND language_id = ?`
 
-	var code string
 	if err := r.db.GetContext(ctx, &code, query, problemID, languageID); err != nil {
 		if err == sql.ErrNoRows {
-			return "", fmt.Errorf("language imports not found for problem %d and language %d", problemID, languageID)
+			_ = r.cache.Set(ctx, cacheKey, "", 1*time.Hour)
+			return "", nil
 		}
 		return "", fmt.Errorf("failed to get language imports: %w", err)
 	}
+
+	_ = r.cache.Set(ctx, cacheKey, code, 1*time.Hour)
 
 	return code, nil
 }

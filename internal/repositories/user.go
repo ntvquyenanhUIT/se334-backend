@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"HAB/internal/models"
+	"HAB/internal/services"
 	"HAB/internal/utils"
 	"context"
 	"database/sql"
@@ -15,17 +16,18 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, req *models.RegisterRequest) (*models.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
 	StoreRefreshToken(ctx context.Context, userID int, token string, expiresAt time.Time) error
-	GetRefreshToken(ctx context.Context, token string) (*models.Token, error)
+	GetRefreshToken(ctx context.Context, token string) (int, error)
 	RevokeToken(ctx context.Context, token string) error
 	GetUserInfo(ctx context.Context, userID int) (*models.UserInfo, error)
 }
 
 type userRepository struct {
-	db *sqlx.DB
+	db    *sqlx.DB
+	cache services.Cache
 }
 
-func NewUserRepository(db *sqlx.DB) UserRepository {
-	return &userRepository{db: db}
+func NewUserRepository(db *sqlx.DB, cache services.Cache) UserRepository {
+	return &userRepository{db: db, cache: cache}
 }
 
 func (r *userRepository) CreateUser(ctx context.Context, req *models.RegisterRequest) (*models.User, error) {
@@ -67,32 +69,36 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 }
 
 func (r *userRepository) StoreRefreshToken(ctx context.Context, userID int, token string, expiresAt time.Time) error {
-	query := `INSERT INTO tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, userID, token, expiresAt)
+	key := fmt.Sprintf("refresh_token:%s", token)
+	ttl := time.Until(expiresAt)
+
+	if ttl <= 0 {
+		return fmt.Errorf("token expiration is in the past")
+	}
+
+	err := r.cache.Set(ctx, key, userID, ttl)
 	if err != nil {
-		return fmt.Errorf("failed to store refresh token: %w", err)
+		return fmt.Errorf("failed to store refresh token in cache: %w", err)
 	}
 	return nil
 }
 
-func (r *userRepository) GetRefreshToken(ctx context.Context, token string) (*models.Token, error) {
-	var t models.Token
-	query := `SELECT id, user_id, token, is_revoked, expires_at FROM tokens WHERE token = ?`
-	err := r.db.GetContext(ctx, &t, query, token)
+func (r *userRepository) GetRefreshToken(ctx context.Context, token string) (int, error) {
+	key := fmt.Sprintf("refresh_token:%s", token)
+	var userID int
+
+	err := r.cache.Get(ctx, key, &userID)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("token not found")
-		}
-		return nil, fmt.Errorf("failed to get refresh token: %w", err)
+		return 0, fmt.Errorf("refresh token not found in cache: %w", err)
 	}
-	return &t, nil
+	return userID, nil
 }
 
 func (r *userRepository) RevokeToken(ctx context.Context, token string) error {
-	query := `UPDATE tokens SET is_revoked = TRUE WHERE token = ?`
-	_, err := r.db.ExecContext(ctx, query, token)
+	key := fmt.Sprintf("refresh_token:%s", token)
+	err := r.cache.Delete(ctx, key)
 	if err != nil {
-		return fmt.Errorf("failed to revoke token: %w", err)
+		return fmt.Errorf("failed to revoke token from cache: %w", err)
 	}
 	return nil
 }

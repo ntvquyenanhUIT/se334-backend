@@ -37,9 +37,11 @@ func StartGinServer() {
 	}
 	defer dbs.CloseRedis()
 
-	codeRepo := repositories.NewCodeRepository(db)
-	problemRepo := repositories.NewProblemRepository(db)
-	userRepo := repositories.NewUserRepository(db)
+	cache := services.NewRedisCache(dbs.RedisClient)
+
+	codeRepo := repositories.NewCodeRepository(db, cache)
+	problemRepo := repositories.NewProblemRepository(db, cache)
+	userRepo := repositories.NewUserRepository(db, cache)
 
 	tokenService := services.NewTokenService(config.JWTSecret)
 
@@ -62,7 +64,6 @@ func StartGinServer() {
 	router := gin.New()
 	router.Use(middlewares.ErrorHandlerMiddleware())
 
-	// Configure CORS to allow credentials and specific origin
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},

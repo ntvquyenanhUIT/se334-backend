@@ -1,10 +1,13 @@
 package repositories
 
 import (
+	"HAB/internal/logger"
 	"HAB/internal/models"
+	"HAB/internal/services"
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -17,29 +20,47 @@ type ProblemRepository interface {
 }
 
 type problemRepository struct {
-	db *sqlx.DB
+	db    *sqlx.DB
+	cache services.Cache
 }
 
-func NewProblemRepository(db *sqlx.DB) ProblemRepository {
-	return &problemRepository{db: db}
+func NewProblemRepository(db *sqlx.DB, cache services.Cache) ProblemRepository {
+	return &problemRepository{db: db, cache: cache}
 }
 
 func (r *problemRepository) GetProblems(ctx context.Context) ([]models.ProblemListItem, error) {
-	query := `SELECT id, title, difficulty FROM problems`
-
+	cacheKey := "problems:list"
 	var problems []models.ProblemListItem
+
+	if err := r.cache.Get(ctx, cacheKey, &problems); err == nil {
+		logger.Log.Info("Cache hit, returning problem list...")
+		return problems, nil // Cache hit
+	}
+
+	logger.Log.Info("Problem list not in cache, retrieving database")
+
+	query := `SELECT id, title, difficulty FROM problems`
 	if err := r.db.SelectContext(ctx, &problems, query); err != nil {
 		return nil, fmt.Errorf("failed to get problems: %w", err)
 	}
+
+	_ = r.cache.Set(ctx, cacheKey, problems, 4*time.Hour)
 
 	return problems, nil
 }
 
 func (r *problemRepository) GetProblemByID(ctx context.Context, problemID int) (*models.ProblemDetail, error) {
+	cacheKey := fmt.Sprintf("problem:%d", problemID)
+	var problem models.ProblemDetail
+
+	if err := r.cache.Get(ctx, cacheKey, &problem); err == nil {
+		logger.Log.Info("Cache hit, returning problem details...")
+		return &problem, nil
+	}
+	logger.Log.Info("Problem details not in cache, retrieving database")
 	query := `SELECT id, title, description, difficulty, sample_input, sample_output 
               FROM problems WHERE id = ?`
 
-	var problem models.ProblemDetail
 	if err := r.db.GetContext(ctx, &problem, query, problemID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("problem not found: %d", problemID)
@@ -47,7 +68,6 @@ func (r *problemRepository) GetProblemByID(ctx context.Context, problemID int) (
 		return nil, fmt.Errorf("failed to get problem: %w", err)
 	}
 
-	// Get submission stats
 	statsQuery := `
         SELECT 
             COUNT(*) as total_submissions,
@@ -75,6 +95,8 @@ func (r *problemRepository) GetProblemByID(ctx context.Context, problemID int) (
 	if err != nil {
 		return nil, err
 	}
+
+	_ = r.cache.Set(ctx, cacheKey, problem, 4*time.Hour)
 
 	problem.StarterCode = starterCode
 	return &problem, nil

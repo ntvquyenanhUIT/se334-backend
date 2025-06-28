@@ -102,7 +102,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 }
 
 func (h *AuthHandler) Verify(c *gin.Context) {
-	// 1. Check for access token
 	accessToken, err := c.Cookie("access_token")
 	if err == nil {
 		claims, err := h.tokenService.ValidateToken(accessToken)
@@ -112,16 +111,14 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 		}
 	}
 
-	// 2. If access token is invalid/missing, check for refresh token
 	refreshToken, err := c.Cookie("refresh_token")
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"is_authenticated": false, "error": "Authorization required"})
 		return
 	}
 
-	// 3. Validate refresh token from DB
-	dbToken, err := h.userRepo.GetRefreshToken(context.Background(), refreshToken)
-	if err != nil || dbToken.IsRevoked || time.Now().After(dbToken.ExpiresAt) {
+	_, err = h.userRepo.GetRefreshToken(context.Background(), refreshToken)
+	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"is_authenticated": false, "error": "Invalid session"})
 		return
 	}
@@ -133,7 +130,6 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 		return
 	}
 
-	// 5. Issue new access token
 	newAccessToken, _, err := h.tokenService.GenerateTokens(claims.UserID)
 	if err != nil {
 		logger.Log.Error("Failed to generate new access token during verify", zap.Error(err))
