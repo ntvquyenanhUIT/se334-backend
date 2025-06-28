@@ -51,7 +51,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{"success": true})
 }
-
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -65,7 +64,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.tokenService.GenerateTokens(user.ID)
+	accessToken, refreshToken, err := h.tokenService.GenerateTokens(user.ID, user.Username, user.Email)
 	if err != nil {
 		logger.Log.Error("Failed to generate tokens", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to log in"})
@@ -99,13 +98,17 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
-
 func (h *AuthHandler) Verify(c *gin.Context) {
 	accessToken, err := c.Cookie("access_token")
 	if err == nil {
 		claims, err := h.tokenService.ValidateToken(accessToken)
 		if err == nil {
-			c.JSON(http.StatusOK, gin.H{"is_authenticated": true, "user_id": claims.UserID})
+			c.JSON(http.StatusOK, gin.H{
+				"is_authenticated": true,
+				"user_id":          claims.UserID,
+				"username":         claims.Username,
+				"email":            claims.Email,
+			})
 			return
 		}
 	}
@@ -122,14 +125,15 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 		return
 	}
 
-	// 4. Validate refresh token signature
+	// Validate refresh token signature
 	claims, err := h.tokenService.ValidateToken(refreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"is_authenticated": false, "error": "Invalid token"})
 		return
 	}
 
-	newAccessToken, _, err := h.tokenService.GenerateTokens(claims.UserID)
+	// No need to fetch user data again, as it's in the claims
+	newAccessToken, _, err := h.tokenService.GenerateTokens(claims.UserID, claims.Username, claims.Email)
 	if err != nil {
 		logger.Log.Error("Failed to generate new access token during verify", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"is_authenticated": false, "error": "Could not refresh session"})
@@ -137,7 +141,12 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 	}
 
 	c.SetCookie("access_token", newAccessToken, 3600, "/", "", false, true)
-	c.JSON(http.StatusOK, gin.H{"is_authenticated": true, "user_id": claims.UserID})
+	c.JSON(http.StatusOK, gin.H{
+		"is_authenticated": true,
+		"user_id":          claims.UserID,
+		"username":         claims.Username,
+		"email":            claims.Email,
+	})
 }
 
 func (h *AuthHandler) GetProfile(c *gin.Context) {

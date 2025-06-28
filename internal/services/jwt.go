@@ -12,7 +12,9 @@ type TokenService struct {
 }
 
 type Claims struct {
-	UserID int `json:"user_id"`
+	UserID   int    `json:"user_id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
 	jwt.RegisteredClaims
 }
 
@@ -20,11 +22,12 @@ func NewTokenService(secret string) *TokenService {
 	return &TokenService{jwtSecret: secret}
 }
 
-func (s *TokenService) GenerateTokens(userID int) (accessToken string, refreshToken string, err error) {
-	// Generate Access Token (1 hour TTL)
+func (s *TokenService) GenerateTokens(userID int, username string, email string) (accessToken string, refreshToken string, err error) {
 	accessExpiresAt := time.Now().Add(time.Hour * 1)
 	accessClaims := &Claims{
-		UserID: userID,
+		UserID:   userID,
+		Username: username,
+		Email:    email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(accessExpiresAt),
 		},
@@ -37,7 +40,9 @@ func (s *TokenService) GenerateTokens(userID int) (accessToken string, refreshTo
 	// Generate Refresh Token (14 days TTL)
 	refreshExpiresAt := time.Now().Add(time.Hour * 24 * 14)
 	refreshClaims := &Claims{
-		UserID: userID,
+		UserID:   userID,
+		Username: username,
+		Email:    email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(refreshExpiresAt),
 		},

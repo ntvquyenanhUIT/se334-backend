@@ -9,7 +9,9 @@ import (
 )
 
 const (
-	userContextKey = "userID"
+	userContextKey     = "userID"
+	usernameContextKey = "username"
+	emailContextKey    = "email"
 )
 
 // AuthMiddleware creates a middleware that enforces authentication.
@@ -31,6 +33,8 @@ func AuthMiddleware(tokenService *services.TokenService) gin.HandlerFunc {
 		}
 
 		c.Set(userContextKey, claims.UserID)
+		c.Set(usernameContextKey, claims.Username)
+		c.Set(emailContextKey, claims.Email)
 		c.Next()
 	}
 }
