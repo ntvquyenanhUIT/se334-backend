@@ -97,6 +97,7 @@ func (r *problemRepository) GetProblemByID(ctx context.Context, problemID int) (
 	}
 
 	problem.StarterCode = starterCode
+
 	_ = r.cache.Set(ctx, cacheKey, problem, 4*time.Hour)
 
 	return &problem, nil

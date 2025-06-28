@@ -169,7 +169,8 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 
 	// Populate derived fields for submissions
 	for i := range userInfo.Submissions {
-		userInfo.Submissions[i].FormattedTime = userInfo.Submissions[i].SubmittedAt.Format("02/01/2006 3:04PM")
+		gmt7Time := userInfo.Submissions[i].SubmittedAt.Add(7 * time.Hour)
+		userInfo.Submissions[i].FormattedTime = gmt7Time.Format("02/01/2006 3:04PM")
 		userInfo.Submissions[i].LanguageName = getLanguageName(userInfo.Submissions[i].LanguageID)
 	}
 
