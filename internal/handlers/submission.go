@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -136,6 +137,7 @@ func (h *SubmissionHandler) GetSubmission(c *gin.Context) {
 }
 
 func (h *SubmissionHandler) GetUserSubmissions(c *gin.Context) {
+
 	problemIDStr := c.Query("problem_id")
 
 	if problemIDStr == "" {
@@ -167,7 +169,8 @@ func (h *SubmissionHandler) GetUserSubmissions(c *gin.Context) {
 	}
 
 	for i := range submissions {
-		submissions[i].FormattedTime = submissions[i].SubmittedAt.Format("02/01/2006 3:04PM")
+		gmt7Time := submissions[i].SubmittedAt.Add(7 * time.Hour)
+		submissions[i].FormattedTime = gmt7Time.Format("02/01/2006 3:04 PM")
 
 		submissions[i].LanguageName = getLanguageName(submissions[i].LanguageID)
 	}

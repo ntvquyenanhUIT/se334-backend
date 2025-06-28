@@ -72,7 +72,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Store refresh token in DB
 	refreshExpiresAt := time.Now().Add(time.Hour * 24 * 14)
 	if err := h.userRepo.StoreRefreshToken(context.Background(), user.ID, refreshToken, refreshExpiresAt); err != nil {
 		logger.Log.Error("Failed to store refresh token", zap.Error(err))
