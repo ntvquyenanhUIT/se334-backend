@@ -16,7 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Language configurations for supported languages
 type LanguageConfig struct {
 	ContainerImage   string
 	FileExtension    string
@@ -25,7 +24,6 @@ type LanguageConfig struct {
 	NeedsCompilation bool
 }
 
-// TestResult stores the outcome of a single test case execution
 type TestResult struct {
 	TestCaseID     int
 	Passed         bool
@@ -34,7 +32,6 @@ type TestResult struct {
 	Error          string
 }
 
-// ExecutionResult stores the overall result of code execution
 type ExecutionResult struct {
 	Status           string
 	Results          []TestResult
@@ -44,7 +41,6 @@ type ExecutionResult struct {
 	ExecutionTime    time.Duration
 }
 
-// CodeRunnerRequest contains all data needed to execute a submission
 type CodeRunnerRequest struct {
 	Submission   models.Submission
 	TestCases    []TestCase
@@ -53,19 +49,16 @@ type CodeRunnerRequest struct {
 	LanguageName string
 }
 
-// TestCase represents a single test case for code execution
 type TestCase struct {
 	ID       int
 	Input    string
 	Expected string
 }
 
-// CodeRunnerService handles execution of code submissions
 type CodeRunnerService struct {
 	workDir string
 }
 
-// NewCodeRunnerService creates a new code runner service
 func NewCodeRunnerService(workDir string) (*CodeRunnerService, error) {
 	// Create working directory if it doesn't exist
 	if err := os.MkdirAll(workDir, 0755); err != nil {
@@ -77,7 +70,6 @@ func NewCodeRunnerService(workDir string) (*CodeRunnerService, error) {
 	}, nil
 }
 
-// Map of supported languages and their configurations
 var languageConfigs = map[string]LanguageConfig{
 	"go": {
 		ContainerImage:   "go-runner",
@@ -95,11 +87,9 @@ var languageConfigs = map[string]LanguageConfig{
 	},
 }
 
-// GetLanguageConfig returns the language configuration for a given language ID
 func GetLanguageConfig(languageID int) (string, LanguageConfig, error) {
 	var languageName string
 
-	// Map language ID to language name
 	switch languageID {
 	case 1:
 		languageName = "python"
@@ -117,7 +107,6 @@ func GetLanguageConfig(languageID int) (string, LanguageConfig, error) {
 	return languageName, config, nil
 }
 
-// Execute runs the code with the given request and returns the execution result
 func (s *CodeRunnerService) Execute(ctx context.Context, req CodeRunnerRequest) (*ExecutionResult, error) {
 	startTime := time.Now()
 	langConfig, ok := languageConfigs[req.LanguageName]
@@ -125,23 +114,19 @@ func (s *CodeRunnerService) Execute(ctx context.Context, req CodeRunnerRequest) 
 		return nil, fmt.Errorf("unsupported language: %s", req.LanguageName)
 	}
 
-	// Create unique folder for this execution (using submission ID)
 	execDir := filepath.Join(s.workDir, fmt.Sprintf("submission_%d", req.Submission.ID))
 	if err := os.MkdirAll(execDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create execution directory: %w", err)
 	}
 	defer os.RemoveAll(execDir) // Clean up when done
 
-	// Create the full source code
 	fullCode := combineCode(req.ImportCode, req.Submission.SourceCode, req.SystemCode, req.LanguageName)
 
-	// Write code to file
 	codeFilePath := filepath.Join(execDir, fmt.Sprintf("main.%s", langConfig.FileExtension))
 	if err := os.WriteFile(codeFilePath, []byte(fullCode), 0644); err != nil {
 		return nil, fmt.Errorf("failed to write code file: %w", err)
 	}
 
-	// Start Docker container
 	containerID, err := s.startContainer(codeFilePath, req.LanguageName)
 	if err != nil {
 		// If compilation error, return immediately
@@ -156,11 +141,9 @@ func (s *CodeRunnerService) Execute(ctx context.Context, req CodeRunnerRequest) 
 	}
 	defer exec.Command("docker", "stop", containerID).Run()
 
-	// Execute each test case
 	results := make([]TestResult, 0, len(req.TestCases))
 
 	for _, tc := range req.TestCases {
-		// Execute test case
 		result, err := s.executeTestCase(containerID, tc, req.LanguageName)
 
 		if err != nil {
@@ -177,7 +160,6 @@ func (s *CodeRunnerService) Execute(ctx context.Context, req CodeRunnerRequest) 
 
 		results = append(results, result)
 
-		// If test case failed, stop and return result
 		if !result.Passed {
 			return &ExecutionResult{
 				Status:        models.StatusWrongAnswer,
@@ -189,7 +171,6 @@ func (s *CodeRunnerService) Execute(ctx context.Context, req CodeRunnerRequest) 
 		}
 	}
 
-	// All test cases passed
 	return &ExecutionResult{
 		Status:        models.StatusAccepted,
 		Results:       results,
@@ -197,7 +178,6 @@ func (s *CodeRunnerService) Execute(ctx context.Context, req CodeRunnerRequest) 
 	}, nil
 }
 
-// startContainer starts a Docker container for code execution
 func (s *CodeRunnerService) startContainer(codePath, language string) (string, error) {
 	langConfig, ok := languageConfigs[language]
 	if !ok {

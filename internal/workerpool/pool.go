@@ -74,7 +74,6 @@ func (w *CodeWorker) Start(ctx context.Context) {
 	}()
 }
 
-// Stop terminates the worker
 func (w *CodeWorker) Stop() {
 	logger.Log.Info("Closing worker",
 		zap.String("worker_id", w.id))
@@ -82,20 +81,17 @@ func (w *CodeWorker) Stop() {
 	close(w.quit)
 }
 
-// processCodeJob processes a code submission job
 func (w *CodeWorker) processCodeJob(ctx context.Context, msg redis.XMessage) {
 	logger.Log.Info("Processing code submission job",
 		zap.String("worker_id", w.id),
 		zap.String("job_id", msg.ID))
 
-	// Acknowledge the message first to prevent redelivery on crash
 	if err := w.rdb.XAck(ctx, w.stream, w.group, msg.ID).Err(); err != nil {
 		logger.Log.Error("Failed to acknowledge job",
 			zap.String("worker_id", w.id),
 			zap.Error(err))
 	}
 
-	// Extract submission ID from the message
 	submissionIDStr, ok := msg.Values["submission_id"].(string)
 	if !ok {
 		logger.Log.Error("Invalid submission ID in message",
@@ -113,7 +109,6 @@ func (w *CodeWorker) processCodeJob(ctx context.Context, msg redis.XMessage) {
 		return
 	}
 
-	// Get submission from database
 	submission, err := w.codeRepo.GetSubmission(ctx, submissionID)
 	if err != nil {
 		logger.Log.Error("Failed to get submission",
@@ -123,7 +118,6 @@ func (w *CodeWorker) processCodeJob(ctx context.Context, msg redis.XMessage) {
 		return
 	}
 
-	// Get language configuration
 	languageName, _, err := services.GetLanguageConfig(submission.LanguageID)
 	if err != nil {
 		logger.Log.Error("Failed to get language config",
@@ -232,7 +226,6 @@ func (w *CodeWorker) processCodeJob(ctx context.Context, msg redis.XMessage) {
 		zap.Duration("execution_time", result.ExecutionTime))
 }
 
-// CodeWorkerPool is a specialized worker pool for code execution
 type CodeWorkerPool struct {
 	workers    []*CodeWorker
 	numWorkers int
@@ -243,10 +236,8 @@ type CodeWorkerPool struct {
 	codeRunner *services.CodeRunnerService
 }
 
-// NewCodeWorkerPool creates a new pool of code workers
 func NewCodeWorkerPool(numWorkers int, rdb *redis.Client, stream, group string,
 	codeRepo repositories.CodeRepository) (*CodeWorkerPool, error) {
-	// Create code runner service
 	codeRunner, err := services.NewCodeRunnerService("/tmp/code-execution")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create code runner service: %w", err)
@@ -263,7 +254,6 @@ func NewCodeWorkerPool(numWorkers int, rdb *redis.Client, stream, group string,
 	}, nil
 }
 
-// Start launches all workers in the pool
 func (p *CodeWorkerPool) Start(ctx context.Context) error {
 	// Create consumer group if it doesn't exist
 	_, err := p.rdb.XGroupCreateMkStream(ctx, p.stream, p.group, "$").Result()

@@ -95,7 +95,7 @@ func (r *codeRepository) GetSubmissionByID(ctx context.Context, submissionID, us
 func (r *codeRepository) GetTestCases(ctx context.Context, problemID int) ([]services.TestCase, error) {
 	cacheKey := fmt.Sprintf("problem:%d:testcases", problemID)
 	var testCases []services.TestCase
-
+	fmt.Println(cacheKey)
 	if err := r.cache.Get(ctx, cacheKey, &testCases); err == nil {
 		logger.Log.Info("Cache hit, returning testcases")
 		return testCases, nil // Cache hit
