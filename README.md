@@ -1,4 +1,4 @@
-# HAB — Homework Auto‑Grader Backend
+# HAB Backend Service
 
 A backend service for managing coding problems and evaluating user submissions. This document provides an overview and API reference for the current implementation.
 
