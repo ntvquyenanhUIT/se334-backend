@@ -81,7 +81,7 @@ var languageConfigs = map[string]LanguageConfig{
 	"python": {
 		ContainerImage:   "python-runner",
 		FileExtension:    "py",
-		BuildCommand:     []string{}, // Python doesn't need compilation
+		BuildCommand:     []string{},
 		RunCommand:       []string{"python", "main.py"},
 		NeedsCompilation: false,
 	},
@@ -118,7 +118,7 @@ func (s *CodeRunnerService) Execute(ctx context.Context, req CodeRunnerRequest) 
 	if err := os.MkdirAll(execDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create execution directory: %w", err)
 	}
-	defer os.RemoveAll(execDir) // Clean up when done
+	defer os.RemoveAll(execDir)
 
 	fullCode := combineCode(req.ImportCode, req.Submission.SourceCode, req.SystemCode, req.LanguageName)
 
